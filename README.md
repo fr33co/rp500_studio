@@ -16,8 +16,6 @@ buttons (one colour per effect) and hardware knobs with LED rings.
 |---|---|
 | ![Connection screen](docs/connect.png) | ![Editing the delay block](docs/delay.png) |
 
-> Captured with a simulated pedal (no hardware attached), so the values are illustrative.
-
 ## What it does
 
 - **Connection screen**: looks for the RP500 over USB and connects when you click the device. If it is unplugged, the app
