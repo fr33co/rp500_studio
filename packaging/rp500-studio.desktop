@@ -1,0 +1,10 @@
+[Desktop Entry]
+Type=Application
+Name=RP500 Studio
+Comment=Editor de la DigiTech RP500 por USB
+Exec=rp500-studio
+Icon=rp500-studio
+Terminal=false
+Categories=AudioVideo;Audio;Midi;
+Keywords=MIDI;guitarra;RP500;DigiTech;multiefectos;
+StartupWMClass=rp500-studio

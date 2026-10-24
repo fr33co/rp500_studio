@@ -1,0 +1,7 @@
+__pycache__/
+*.pyc
+dist/
+.stfolder
+.stignore
+.syncthing.*
+*.sync-conflict-*
