@@ -10,11 +10,11 @@ buttons (one colour per effect) and hardware knobs with LED rings.
 
 ## Screenshots
 
-![Editing the amplifier block](docs/amp.png)
+![Editing the delay block](docs/delay.png)
 
-| Connection screen | Delay block |
+| Connection screen | Reverb block |
 |---|---|
-| ![Connection screen](docs/connect.png) | ![Editing the delay block](docs/delay.png) |
+| ![Connection screen](docs/connect.png) | ![Editing the reverb block](docs/reverb.png) |
 
 ## What it does
 
