@@ -2,7 +2,8 @@
 
 **RP500 Studio** is a desktop editor for the **DigiTech RP500** multi-effects pedal on Linux. It follows the approach of
 [gdigi](https://github.com/desowin/gdigi) — every effect type and parameter, preset banks, storing presets — with a modern
-interface in the style of MK300 Studio: themes, rotary knobs and a signal-chain view.
+interface inspired by the pedal itself: an amber LCD for the preset, a chassis-style panel with metal footswitch-like
+buttons (one colour per effect) and hardware knobs with LED rings.
 
 > Unofficial project, not affiliated with DigiTech or Harman. It speaks the pedal's USB-MIDI SysEx protocol, documented by
 > the gdigi project. **Use it at your own risk**: it writes to the pedal's memory.
@@ -11,6 +12,8 @@ interface in the style of MK300 Studio: themes, rotary knobs and a signal-chain 
 
 - **Connection screen**: looks for the RP500 over USB and connects when you click the device. If it is unplugged, the app
   returns to that screen on its own.
+- Amber LCD showing the preset number/name, the selected block and the last parameter you touched; it follows preset
+  changes made on the pedal itself.
 - Lists the 100 user presets and the system presets (with search) and loads the one you pick on the pedal.
 - Signal chain Wah → Amp → Cab → EQ → Compressor → Distortion → Gate → Mod/FX → Delay → Reverb, with a power switch and a
   category icon per block.

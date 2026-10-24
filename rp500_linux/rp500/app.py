@@ -9,7 +9,7 @@ from PyQt5 import QtCore, QtGui, QtWidgets
 
 from . import device, files, model, theme
 from . import protocol as px
-from .widgets import Card, ChainButton, FlowLayout, GlowPanel, Knob, OverlayCombo, Switch
+from .widgets import Card, ChainButton, FlowLayout, GlowPanel, Knob, Lcd, OverlayCombo, Plate, Switch
 
 BACKUPS = os.path.join(os.path.expanduser("~/.local/share/rp500-studio"), "backups")
 
@@ -155,18 +155,21 @@ class MainWindow(QtWidgets.QMainWindow):
         right = QtWidgets.QVBoxLayout()
         right.setContentsMargins(22, 18, 22, 14)
         top = QtWidgets.QHBoxLayout()
-        self.title = QtWidgets.QLabel("—")
-        self.title.setStyleSheet("font-size: 24px; font-weight: bold;")
+        self.title = Lcd()
         self.save_btn = QtWidgets.QPushButton("Guardar en…")
         self.save_btn.clicked.connect(self.save_as)
         self.reload_btn = QtWidgets.QPushButton("Releer")
         self.reload_btn.clicked.connect(self.refresh_preset)
+        btns = QtWidgets.QVBoxLayout()
+        btns.addWidget(self.save_btn)
+        btns.addWidget(self.reload_btn)
         top.addWidget(self.title, 1)
-        top.addWidget(self.reload_btn)
-        top.addWidget(self.save_btn)
+        top.addLayout(btns)
         right.addLayout(top)
 
-        row = QtWidgets.QHBoxLayout()
+        plate = Plate()
+        row = QtWidgets.QHBoxLayout(plate)
+        row.setContentsMargins(22, 12, 22, 12)
         row.setSpacing(8)
         self.chips = []
         for i, (name, color, items) in enumerate(self.blocks):
@@ -176,7 +179,7 @@ class MainWindow(QtWidgets.QMainWindow):
             self.chips.append(c)
             row.addWidget(c)
         right.addSpacing(10)
-        right.addLayout(row)
+        right.addWidget(plate)
 
         self.panel = GlowPanel()
         self.panel_lay = QtWidgets.QVBoxLayout(self.panel)
@@ -217,8 +220,11 @@ class MainWindow(QtWidgets.QMainWindow):
             self.pedal.identify()
             self.pedal.gui_mode(True)
             cfg = self.pedal.config()
+            if cfg.get("bank") in (px.BANK_SYSTEM, px.BANK_USER):
+                self.bank, self.cur_slot = cfg["bank"], cfg["preset"]
+                self.bank_box.setCurrentIndex(0 if self.bank == px.BANK_USER else 1)
             self.pedal.param_changed.connect(self.on_param)
-            self.pedal.preset_moved.connect(lambda b, i: self.refresh_timer.start())
+            self.pedal.preset_moved.connect(self.on_moved)
             self.pedal.lost.connect(lambda: self.disconnect_pedal("Se perdió la conexión."))
             self.stack.setCurrentIndex(1)
             self.load_names()
@@ -266,6 +272,31 @@ class MainWindow(QtWidgets.QMainWindow):
         if self.pedal:
             self.load_names()
 
+    def on_moved(self, bank, idx):
+        """La pedalera cambió de preset (pedal físico): la lista y la pantalla lo siguen."""
+        if bank in (px.BANK_SYSTEM, px.BANK_USER):
+            if bank != self.bank:
+                self.bank = bank
+                self.bank_box.setCurrentIndex(0 if bank == px.BANK_USER else 1)
+                self.save_btn.setEnabled(bank == px.BANK_USER)
+                self.load_names()
+            self.cur_slot = idx
+            self.syncing = True
+            self.plist.setCurrentRow(idx)
+            self.syncing = False
+        self.refresh_timer.start()
+
+    def update_lcd(self, last=None):
+        n = "--" if self.cur_slot is None else f"{'U' if self.bank == px.BANK_USER else 'S'}{self.cur_slot + 1:02d}"
+        self.title.setNumber(n)
+        name, _, items = self.blocks[self.sel]
+        typ = ""
+        for it in items:
+            if it["type_id"] >= 0 and it["types"]:
+                tv = self.values.get((it["type_id"], it["position"]))
+                typ = next((t["label"] for t in it["types"] if t["type"] == tv), "")
+        self.title.setInfo(f"{name.upper()}  {typ}".strip(), last)
+
     def pick_preset(self, row):
         if self.syncing or row < 0 or not self.pedal:
             return
@@ -287,6 +318,7 @@ class MainWindow(QtWidgets.QMainWindow):
         except device.DeviceError:
             pass
         self.title.setText(name or "—")
+        self.update_lcd("")
         self.build_panel()
         self.sync_chips()
         self.say(f"Preset «{name}» leído · {len(params)} parámetros")
@@ -308,6 +340,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.sel = i
         self.build_panel()
         self.sync_chips()
+        self.update_lcd()
 
     def toggle_block(self, i, on):
         for it in self.blocks[i][2]:
@@ -377,7 +410,8 @@ class MainWindow(QtWidgets.QMainWindow):
         lo, hi = model.value_range(v)
         k = Knob(p["label"], lo, hi, color, fmt=lambda raw, v=v: model.format_value(v, raw))
         k.setValue(self.values.get((p["id"], p["position"]), lo))
-        k.valueChanged.connect(lambda raw, p=p: self.send(p["id"], p["position"], raw))
+        k.valueChanged.connect(lambda raw, p=p, v=v: (self.send(p["id"], p["position"], raw),
+                                                      self.update_lcd(f"{p['label']}: {model.format_value(v, raw)}")))
         self.knobs[(p["id"], p["position"])] = k
         flow.addWidget(k)
 

@@ -11,14 +11,16 @@ def col(key):
 
 
 class Knob(QtWidgets.QWidget):
-    """Perilla con arco de 270°, resplandor, aguja y valor en píldora. Arrastre vertical o rueda."""
+    """Perilla de aparato: cuerpo metálico negro con aguja y aro de LEDs que se encienden hasta el valor.
+    Arrastre vertical o rueda; `fmt` convierte el valor crudo en texto."""
     valueChanged = QtCore.pyqtSignal(int)
+    LEDS = 15
 
     def __init__(self, label, vmin, vmax, color, fmt=str, parent=None):
         super().__init__(parent)
         self.label, self.vmin, self.vmax, self.color, self.fmt = label, vmin, vmax, color, fmt
         self._v, self._drag, self._hover = vmin, None, False
-        self.setFixedSize(100, 132)
+        self.setFixedSize(100, 148)
         self.setCursor(QtCore.Qt.SizeVerCursor)
         self.setToolTip(label)
 
@@ -63,53 +65,137 @@ class Knob(QtWidgets.QWidget):
         p.setRenderHint(QtGui.QPainter.Antialiasing)
         c = QtGui.QColor(self.color)
         frac = (self._v - self.vmin) / self._span()
-        cx, cy, d = 50.0, 42.0, 66.0
-        r = QtCore.QRectF(cx - d / 2, cy - d / 2, d, d)
-        # pista y resplandor del arco activo
-        p.setPen(QtGui.QPen(col("kElevated"), 6, cap=QtCore.Qt.RoundCap))
-        p.drawArc(r, -135 * 16, -270 * 16)
-        span = int(-270 * max(frac, 0.003) * 16)
-        glow = QtGui.QColor(c)
-        glow.setAlpha(110 if self._hover or self._drag else 60)
-        p.setPen(QtGui.QPen(glow, 13, cap=QtCore.Qt.RoundCap))
-        p.drawArc(r, -135 * 16, span)
-        grad = QtGui.QConicalGradient(r.center(), 225)
-        grad.setColorAt(0.0, c.lighter(135))
-        grad.setColorAt(0.75, c)
-        p.setPen(QtGui.QPen(QtGui.QBrush(grad), 6, cap=QtCore.Qt.RoundCap))
-        p.drawArc(r, -135 * 16, span)
-        # cuerpo de la perilla con aguja
-        body = r.adjusted(11, 11, -11, -11)
-        bg = QtGui.QRadialGradient(body.center() - QtCore.QPointF(0, 6), body.width() * 0.7)
-        bg.setColorAt(0, col("kElevated").lighter(125))
-        bg.setColorAt(1, col("kCard").darker(115))
-        p.setPen(QtGui.QPen(col("kBorder"), 1))
-        p.setBrush(bg)
-        p.drawEllipse(body)
-        ang = math.radians(225 - 270 * frac)
-        rad = body.width() / 2
-        p.setPen(QtGui.QPen(c, 3, cap=QtCore.Qt.RoundCap))
-        p.drawLine(QtCore.QPointF(cx + rad * 0.35 * math.cos(ang), cy - rad * 0.35 * math.sin(ang)),
-                   QtCore.QPointF(cx + rad * 0.82 * math.cos(ang), cy - rad * 0.82 * math.sin(ang)))
-        # valor en píldora y etiqueta
+        cx, cy = 50.0, 60.0
+        # etiqueta grabada arriba
         f = p.font()
-        f.setPointSizeF(9.5)
+        f.setPointSizeF(8)
         f.setBold(True)
-        p.setFont(f)
-        pill = QtCore.QRectF(8, 82, 84, 22)
-        p.setPen(QtCore.Qt.NoPen)
-        fill = QtGui.QColor(c)
-        fill.setAlpha(34)
-        p.setBrush(fill)
-        p.drawRoundedRect(pill, 11, 11)
-        p.setPen(c.lighter(115))
-        p.drawText(pill, QtCore.Qt.AlignCenter, self.fmt(self._v))
-        f.setBold(False)
-        f.setPointSizeF(9)
+        f.setLetterSpacing(QtGui.QFont.AbsoluteSpacing, 0.3)
         p.setFont(f)
         p.setPen(col("kTextSecondary"))
-        p.drawText(QtCore.QRectF(0, 106, 100, 26), QtCore.Qt.AlignHCenter | QtCore.Qt.AlignTop
-                   | QtCore.Qt.TextWordWrap, self.label)
+        text = self.label.upper().replace("BANDWIDTH", "BW")
+        text = QtGui.QFontMetrics(f).elidedText(text, QtCore.Qt.ElideRight, 98)
+        p.drawText(QtCore.QRectF(0, 0, 100, 14), QtCore.Qt.AlignCenter, text)
+        # aro de LEDs: se encienden hasta el valor
+        for i in range(self.LEDS):
+            a = math.radians(225 - 270 * i / (self.LEDS - 1))
+            pt = QtCore.QPointF(cx + 38 * math.cos(a), cy - 38 * math.sin(a))
+            lit = frac >= i / (self.LEDS - 1) - 1e-6 and (frac > 0 or i == 0)
+            if lit:
+                g = QtGui.QRadialGradient(pt, 8)
+                gc = QtGui.QColor(c)
+                gc.setAlpha(120 if self._hover or self._drag else 80)
+                g.setColorAt(0, gc)
+                g.setColorAt(1, QtGui.QColor(0, 0, 0, 0))
+                p.setPen(QtCore.Qt.NoPen)
+                p.setBrush(g)
+                p.drawEllipse(pt, 8, 8)
+            p.setPen(QtCore.Qt.NoPen)
+            p.setBrush(c.lighter(125) if lit else QtGui.QColor("#2a2a2d"))
+            p.drawEllipse(pt, 2.6, 2.6)
+        # sombra y cuerpo metálico con rebordes
+        p.setPen(QtCore.Qt.NoPen)
+        p.setBrush(QtGui.QColor(0, 0, 0, 120))
+        p.drawEllipse(QtCore.QPointF(cx, cy + 2), 27, 27)
+        metal = QtGui.QConicalGradient(QtCore.QPointF(cx, cy), 90)
+        for pos, hexc in ((0.0, "#5a5a5f"), (0.15, "#26262a"), (0.35, "#74747a"), (0.5, "#1e1e22"),
+                          (0.65, "#6a6a70"), (0.85, "#26262a"), (1.0, "#5a5a5f")):
+            metal.setColorAt(pos, QtGui.QColor(hexc))
+        p.setBrush(metal)
+        p.drawEllipse(QtCore.QPointF(cx, cy), 26, 26)
+        p.setPen(QtGui.QPen(QtGui.QColor("#0c0c0e"), 1.2))
+        for i in range(36):                       # moleteado del borde
+            a = math.radians(i * 10)
+            p.drawLine(QtCore.QPointF(cx + 23.5 * math.cos(a), cy - 23.5 * math.sin(a)),
+                       QtCore.QPointF(cx + 26 * math.cos(a), cy - 26 * math.sin(a)))
+        top = QtGui.QRadialGradient(QtCore.QPointF(cx - 6, cy - 8), 30)
+        top.setColorAt(0, QtGui.QColor("#3a3a40"))
+        top.setColorAt(1, QtGui.QColor("#121215"))
+        p.setPen(QtGui.QPen(QtGui.QColor("#050506"), 1))
+        p.setBrush(top)
+        p.drawEllipse(QtCore.QPointF(cx, cy), 20, 20)
+        ang = math.radians(225 - 270 * frac)
+        p.setPen(QtGui.QPen(QtGui.QColor("#f4f4f4"), 3, cap=QtCore.Qt.RoundCap))
+        p.drawLine(QtCore.QPointF(cx + 8 * math.cos(ang), cy - 8 * math.sin(ang)),
+                   QtCore.QPointF(cx + 18 * math.cos(ang), cy - 18 * math.sin(ang)))
+        # valor en pantallita
+        f.setPointSizeF(9.5)
+        f.setBold(True)
+        f.setLetterSpacing(QtGui.QFont.AbsoluteSpacing, 0)
+        p.setFont(f)
+        pill = QtCore.QRectF(10, 114, 80, 24)
+        p.setPen(QtGui.QPen(QtGui.QColor("#000000"), 1))
+        p.setBrush(QtGui.QColor("#120d03"))
+        p.drawRoundedRect(pill, 5, 5)
+        p.setPen(QtGui.QColor("#ffb52e"))
+        p.drawText(pill, QtCore.Qt.AlignCenter, self.fmt(self._v))
+
+
+class Lcd(QtWidgets.QWidget):
+    """Pantalla LCD ámbar: número y nombre del preset, bloque/tipo seleccionado y último parámetro tocado."""
+    AMBER = QtGui.QColor("#ffb52e")
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self._num, self._name, self._l2, self._l3 = "--", "—", "", ""
+        self.setMinimumSize(420, 104)
+        self.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Fixed)
+
+    def setText(self, name):
+        self._name = name or "—"
+        self.update()
+
+    def text(self):
+        return self._name
+
+    def setNumber(self, n):
+        self._num = n
+        self.update()
+
+    def setInfo(self, l2, l3=None):
+        self._l2 = l2
+        if l3 is not None:
+            self._l3 = l3
+        self.update()
+
+    def paintEvent(self, _):
+        p = QtGui.QPainter(self)
+        p.setRenderHint(QtGui.QPainter.Antialiasing)
+        r = QtCore.QRectF(1, 1, self.width() - 2, self.height() - 2)
+        p.setPen(QtGui.QPen(QtGui.QColor("#000000"), 3))
+        g = QtGui.QLinearGradient(r.topLeft(), r.bottomLeft())
+        g.setColorAt(0, QtGui.QColor("#241802"))
+        g.setColorAt(1, QtGui.QColor("#0f0a01"))
+        p.setBrush(g)
+        p.drawRoundedRect(r, 10, 10)
+        p.setPen(QtGui.QPen(QtGui.QColor(255, 181, 46, 40), 1))
+        p.setBrush(QtCore.Qt.NoBrush)
+        p.drawRoundedRect(r.adjusted(5, 5, -5, -5), 7, 7)
+        mono = QtGui.QFont("DejaVu Sans Mono")
+        mono.setStyleHint(QtGui.QFont.Monospace)
+
+        def text(rect, s, size, bold, alpha=255, flags=QtCore.Qt.AlignLeft | QtCore.Qt.AlignVCenter):
+            mono.setPointSizeF(size)
+            mono.setBold(bold)
+            p.setFont(mono)
+            glow = QtGui.QColor(self.AMBER)
+            glow.setAlpha(int(alpha * 0.28))
+            p.setPen(glow)
+            for dx, dy in ((-1, 0), (1, 0), (0, -1), (0, 1)):      # resplandor
+                p.drawText(rect.translated(dx, dy), flags, s)
+            c = QtGui.QColor(self.AMBER)
+            c.setAlpha(alpha)
+            p.setPen(c)
+            p.drawText(rect, flags, s)
+
+        m = 18
+        text(QtCore.QRectF(m, 8, 96, 52), self._num, 27, True)
+        text(QtCore.QRectF(m + 100, 8, self.width() - m * 2 - 100, 52), self._name.upper(), 24, True)
+        text(QtCore.QRectF(m, 60, self.width() - m * 2, 18), self._l2, 11, True, 230)
+        text(QtCore.QRectF(m, 78, self.width() - m * 2, 18), self._l3, 10, False, 160)
+        p.setPen(QtGui.QPen(QtGui.QColor(0, 0, 0, 40), 1))        # líneas de barrido
+        for y in range(int(r.top()) + 4, int(r.bottom()) - 3, 3):
+            p.drawLine(int(r.left()) + 4, y, int(r.right()) - 4, y)
 
 
 class Switch(QtWidgets.QWidget):
@@ -141,38 +227,55 @@ class Switch(QtWidgets.QWidget):
         p.drawEllipse(QtCore.QRectF(23 if self.on else 4, 4, 18, 18))
 
 
+def draw_plate(p, r, accent=None, radius=12):
+    """Placa del chasis: degradado negro, reborde y tornillos en las esquinas."""
+    path = QtGui.QPainterPath()
+    path.addRoundedRect(r, radius, radius)
+    g = QtGui.QLinearGradient(r.topLeft(), r.bottomLeft())
+    g.setColorAt(0, QtGui.QColor("#232326"))
+    g.setColorAt(1, QtGui.QColor("#131315"))
+    p.fillPath(path, g)
+    p.setPen(QtGui.QPen(QtGui.QColor("#070708"), 1.5))
+    p.drawPath(path)
+    p.setPen(QtGui.QPen(QtGui.QColor(255, 255, 255, 22), 1))
+    p.drawRoundedRect(r.adjusted(1.5, 1.5, -1.5, -1.5), radius - 1, radius - 1)
+    for sx, sy in ((r.left() + 11, r.top() + 11), (r.right() - 11, r.top() + 11),
+                   (r.left() + 11, r.bottom() - 11), (r.right() - 11, r.bottom() - 11)):
+        sg = QtGui.QRadialGradient(QtCore.QPointF(sx - 1, sy - 1), 6)
+        sg.setColorAt(0, QtGui.QColor("#6a6a70"))
+        sg.setColorAt(1, QtGui.QColor("#2a2a2e"))
+        p.setPen(QtGui.QPen(QtGui.QColor("#050506"), 1))
+        p.setBrush(sg)
+        p.drawEllipse(QtCore.QPointF(sx, sy), 4.2, 4.2)
+        p.setPen(QtGui.QPen(QtGui.QColor("#0a0a0b"), 1.2))
+        p.drawLine(QtCore.QPointF(sx - 2.4, sy + 1.2), QtCore.QPointF(sx + 2.4, sy - 1.2))
+    if accent is not None:                                        # serigrafía: línea fina de color bajo la cabecera
+        line = QtGui.QColor(accent)
+        line.setAlpha(150)
+        p.setPen(QtGui.QPen(line, 1.5))
+        p.drawLine(QtCore.QPointF(r.left() + 26, r.top() + 64), QtCore.QPointF(r.right() - 26, r.top() + 64))
+
+
 class Card(QtWidgets.QFrame):
-    """Tarjeta de efecto: degradado, borde sutil, barra y resplandor del color de la categoría."""
+    """Tarjeta de efecto con aspecto de placa del aparato."""
 
     def __init__(self, color, parent=None):
         super().__init__(parent)
         self.color = QtGui.QColor(color)
-        self.setAttribute(QtCore.Qt.WA_StyledBackground, False)
 
     def paintEvent(self, _):
         p = QtGui.QPainter(self)
         p.setRenderHint(QtGui.QPainter.Antialiasing)
-        r = QtCore.QRectF(0.5, 0.5, self.width() - 1, self.height() - 1)
-        path = QtGui.QPainterPath()
-        path.addRoundedRect(r, 18, 18)
-        g = QtGui.QLinearGradient(r.topLeft(), r.bottomRight())
-        g.setColorAt(0, col("kCard").lighter(108))
-        g.setColorAt(1, col("kSurface"))
-        p.fillPath(path, g)
-        p.save()
-        p.setClipPath(path)
-        glow = QtGui.QRadialGradient(r.topRight() + QtCore.QPointF(-30, 30), 260)
-        top = QtGui.QColor(self.color)
-        top.setAlpha(46)
-        glow.setColorAt(0, top)
-        glow.setColorAt(1, QtGui.QColor(0, 0, 0, 0))
-        p.fillRect(r, glow)
-        p.fillRect(QtCore.QRectF(0, 0, 5, self.height()), self.color)
-        p.restore()
-        edge = QtGui.QColor(self.color)
-        edge.setAlpha(70)
-        p.setPen(QtGui.QPen(edge, 1))
-        p.drawPath(path)
+        draw_plate(p, QtCore.QRectF(0.5, 0.5, self.width() - 1, self.height() - 1), self.color)
+
+
+class Plate(QtWidgets.QFrame):
+    """Placa sin acento (contenedor de la fila de botones y de la pantalla)."""
+
+    def paintEvent(self, _):
+        p = QtGui.QPainter(self)
+        p.setRenderHint(QtGui.QPainter.Antialiasing)
+        draw_plate(p, QtCore.QRectF(0.5, 0.5, self.width() - 1, self.height() - 1))
 
 
 class FlowLayout(QtWidgets.QLayout):
@@ -228,7 +331,7 @@ class FlowLayout(QtWidgets.QLayout):
 
 
 class GlowPanel(QtWidgets.QWidget):
-    """Fondo del panel de detalle: resplandor suave del color del bloque seleccionado."""
+    """Fondo del panel de detalle: chasis oscuro con un leve tinte del color del bloque seleccionado."""
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -241,12 +344,16 @@ class GlowPanel(QtWidgets.QWidget):
 
     def paintEvent(self, _):
         p = QtGui.QPainter(self)
-        g = QtGui.QRadialGradient(QtCore.QPointF(self.width() * 0.5, 0), max(self.width(), 400) * 0.7)
-        c = QtGui.QColor(self.color)
-        c.setAlpha(36)
-        g.setColorAt(0, c)
-        g.setColorAt(1, QtGui.QColor(0, 0, 0, 0))
+        g = QtGui.QLinearGradient(0, 0, 0, self.height())
+        g.setColorAt(0, QtGui.QColor("#0e0e10"))
+        g.setColorAt(1, QtGui.QColor("#09090a"))
         p.fillRect(self.rect(), g)
+        rg = QtGui.QRadialGradient(QtCore.QPointF(self.width() * 0.5, 0), max(self.width(), 400) * 0.6)
+        c = QtGui.QColor(self.color)
+        c.setAlpha(22)
+        rg.setColorAt(0, c)
+        rg.setColorAt(1, QtGui.QColor(0, 0, 0, 0))
+        p.fillRect(self.rect(), rg)
 
 
 def draw_icon(p, name, r, pen):
@@ -301,7 +408,7 @@ def draw_icon(p, name, r, pen):
 
 
 class ChainButton(QtWidgets.QWidget):
-    """Bloque de la cadena: píldora con nombre, punto de encendido y color de categoría."""
+    """Botón de la cadena: pulsador metálico con ícono y LED del color de la categoría."""
     selected = QtCore.pyqtSignal()
     toggled = QtCore.pyqtSignal(bool)
 
@@ -309,7 +416,7 @@ class ChainButton(QtWidgets.QWidget):
         super().__init__(parent)
         self.name, self.color, self.can_toggle = name, color, can_toggle
         self.on, self.active = True, False
-        self.setMinimumSize(78, 64)
+        self.setMinimumSize(78, 78)
         self.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Fixed)
         self.setCursor(QtCore.Qt.PointingHandCursor)
 
@@ -323,7 +430,7 @@ class ChainButton(QtWidgets.QWidget):
         self.update()
 
     def _dot(self):
-        return QtCore.QRectF(self.width() / 2 - 12, 9, 24, 22)
+        return QtCore.QRectF(self.width() / 2 - 12, 11, 24, 22)
 
     def mousePressEvent(self, e):
         if self.can_toggle and self._dot().adjusted(-6, -6, 6, 6).contains(e.pos()):
@@ -335,13 +442,17 @@ class ChainButton(QtWidgets.QWidget):
         p = QtGui.QPainter(self)
         p.setRenderHint(QtGui.QPainter.Antialiasing)
         c = QtGui.QColor(self.color)
-        body = QtCore.QRectF(1.5, 1.5, self.width() - 3, self.height() - 3)
-        p.setBrush(col("kElevated") if self.active else col("kCard"))
-        p.setPen(QtGui.QPen(c if self.active else col("kBorder"), 2 if self.active else 1))
-        p.drawRoundedRect(body, 12, 12)
-        d = self._dot()
         lit = self.on or not self.can_toggle
-        pen = QtGui.QPen(c if lit else col("kTextMuted"), 1.8, cap=QtCore.Qt.RoundCap, join=QtCore.Qt.RoundJoin)
+        body = QtCore.QRectF(2, 2, self.width() - 4, self.height() - 4)
+        g = QtGui.QLinearGradient(body.topLeft(), body.bottomLeft())
+        g.setColorAt(0, QtGui.QColor("#4a4a50") if self.active else QtGui.QColor("#38383d"))
+        g.setColorAt(1, QtGui.QColor("#1c1c20"))
+        p.setPen(QtGui.QPen(c if self.active else QtGui.QColor("#08080a"), 2 if self.active else 1.5))
+        p.setBrush(g)
+        p.drawRoundedRect(body, 9, 9)
+        p.setPen(QtGui.QPen(QtGui.QColor(255, 255, 255, 36), 1))     # brillo del borde superior
+        p.drawLine(QtCore.QPointF(body.left() + 9, body.top() + 1.5), QtCore.QPointF(body.right() - 9, body.top() + 1.5))
+        d = self._dot()
         if lit:
             glow = QtGui.QRadialGradient(d.center(), 22)
             gc = QtGui.QColor(c)
@@ -351,13 +462,31 @@ class ChainButton(QtWidgets.QWidget):
             p.setPen(QtCore.Qt.NoPen)
             p.setBrush(glow)
             p.drawEllipse(d.center(), 22, 22)
-        draw_icon(p, self.name, d, pen)
+        draw_icon(p, self.name, d, QtGui.QPen(c if lit else col("kTextMuted"), 1.8, cap=QtCore.Qt.RoundCap,
+                                              join=QtCore.Qt.RoundJoin))
         f = p.font()
-        f.setPointSizeF(9.5)
+        f.setPointSizeF(8.5)
         f.setBold(True)
+        f.setLetterSpacing(QtGui.QFont.AbsoluteSpacing, 0.5)
         p.setFont(f)
-        p.setPen(col("kTextPrimary") if self.on else col("kTextMuted"))
-        p.drawText(QtCore.QRectF(0, 34, self.width(), 24), QtCore.Qt.AlignCenter, self.name)
+        p.setPen(QtGui.QColor("#e8e8ea") if lit else QtGui.QColor("#6a6a70"))
+        short = {"Equalizer": "EQ", "Compressor": "COMP", "Distortion": "DIST", "Noisegate": "GATE", "Reverb": "REV"}
+        p.drawText(QtCore.QRectF(0, 40, self.width(), 18), QtCore.Qt.AlignCenter,
+                   short.get(self.name, self.name).upper())
+        # LED indicador
+        led = QtCore.QPointF(self.width() / 2, 66)
+        if lit:
+            lg = QtGui.QRadialGradient(led, 10)
+            lc = QtGui.QColor(c)
+            lc.setAlpha(150)
+            lg.setColorAt(0, lc)
+            lg.setColorAt(1, QtGui.QColor(0, 0, 0, 0))
+            p.setPen(QtCore.Qt.NoPen)
+            p.setBrush(lg)
+            p.drawEllipse(led, 10, 10)
+        p.setPen(QtGui.QPen(QtGui.QColor("#050506"), 1))
+        p.setBrush(c.lighter(130) if lit else QtGui.QColor("#26262a"))
+        p.drawEllipse(led, 3.6, 3.6)
 
 
 class OverlayCombo(QtWidgets.QComboBox):
