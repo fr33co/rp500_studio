@@ -48,8 +48,8 @@ buttons (one colour per effect) and hardware knobs with LED rings.
 ## Installation (.deb package)
 
 ```
-sh packaging/build_deb.sh            # builds dist/rp500-studio_0.1.0_all.deb
-sudo apt install ./dist/rp500-studio_0.1.0_all.deb
+sh packaging/build_deb.sh            # builds dist/rp500-studio_0.2.0_all.deb
+sudo apt install ./dist/rp500-studio_0.2.0_all.deb
 rp500-studio
 ```
 

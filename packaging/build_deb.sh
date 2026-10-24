@@ -2,7 +2,7 @@
 # Construye dist/rp500-studio_<versión>_all.deb. Uso: sh packaging/build_deb.sh [versión]
 set -e
 cd "$(dirname "$0")/.."
-VER="${1:-0.1.0}"
+VER="${1:-0.2.0}"
 PKG=rp500-studio
 STAGE="$(mktemp -d)"
 ROOT="$STAGE/$PKG"
